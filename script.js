@@ -702,34 +702,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-save functionality
     let autoSaveTimeout;
-    const AUTO_SAVE_DELAY = 2000; // 2 seconds
+    const AUTO_SAVE_DELAY = 60000; // 1 minute in milliseconds
 
     function showSaveIndicator() {
-        saveIndicator.classList.add('visible');
+        saveIndicator.textContent = 'Saving...';
         setTimeout(() => {
-            saveIndicator.classList.remove('visible');
-        }, 2000);
+            saveIndicator.textContent = 'All changes saved';
+            setTimeout(() => {
+                saveIndicator.textContent = '';
+            }, 2000);
+        }, 500);
     }
 
     function autoSave() {
         clearTimeout(autoSaveTimeout);
         autoSaveTimeout = setTimeout(() => {
             saveCurrentNote();
+            showSaveIndicator();
         }, AUTO_SAVE_DELAY);
     }
 
     // Save current note
     function saveCurrentNote() {
-        const currentNote = {
-            id: Date.now(),
-            content: textArea.innerHTML,
-            canvas: canvas.toDataURL(),
-            timestamp: new Date().toISOString(),
-            title: `Note ${new Date().toLocaleString()}`
-        };
-
-        let notes = JSON.parse(localStorage.getItem(`notes_${deviceId}`) || '[]');
-        notes.unshift(currentNote);
+        const content = textArea.innerHTML;
+        const timestamp = new Date().toISOString();
+        const notes = JSON.parse(localStorage.getItem(`notes_${deviceId}`) || '[]');
+        
+        // Update the current note or create a new one
+        if (notes.length > 0) {
+            notes[0] = { content, timestamp };
+        } else {
+            notes.push({ content, timestamp });
+        }
+        
         localStorage.setItem(`notes_${deviceId}`, JSON.stringify(notes));
         showSaveIndicator();
     }
