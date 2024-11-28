@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const ctx = canvas.getContext('2d');
     const commandInput = document.getElementById('commandInput');
     const commandSuggestions = document.getElementById('commandSuggestions');
+    const tabBar = document.getElementById('tabBar');
+    const tabContent = document.getElementById('tabContent');
 
     // Mode controls
     const textMode = document.getElementById('textMode');
@@ -33,6 +35,122 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModal = document.querySelector('.close');
     const historyList = document.getElementById('historyList');
     const saveIndicator = document.getElementById('saveIndicator');
+    const exportAllBtn = document.getElementById('exportAll');
+
+    // Tab management
+    let tabs = [];
+    let activeTabId = null;
+
+    class Tab {
+        constructor() {
+            this.id = Date.now().toString();
+            this.title = `Note ${tabs.length + 1}`;
+            this.textContent = '';
+            this.canvasData = '';
+            this.createTab();
+            makeTabNameEditable(this);
+        }
+
+        createTab() {
+            const tab = document.createElement('button');
+            tab.className = 'tab';
+            tab.dataset.id = this.id;
+            tab.innerHTML = `
+                <i class="fas fa-file-alt"></i>
+                <span>${this.title}</span>
+                <span class="close-tab"><i class="fas fa-times"></i></span>
+            `;
+
+            tab.addEventListener('click', (e) => {
+                if (!e.target.closest('.close-tab')) {
+                    this.activate();
+                }
+            });
+
+            tab.querySelector('.close-tab').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.close();
+            });
+
+            this.tabButton = tab;
+            tabBar.appendChild(tab);
+        }
+
+        activate() {
+            // Save current tab content if exists
+            if (activeTabId) {
+                const currentTab = tabs.find(t => t.id === activeTabId);
+                if (currentTab) {
+                    currentTab.save();
+                }
+            }
+
+            // Deactivate all tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            
+            // Activate this tab
+            this.tabButton.classList.add('active');
+            activeTabId = this.id;
+            
+            // Load content
+            textArea.innerHTML = this.textContent;
+            
+            // Load canvas if there's data
+            if (this.canvasData) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                };
+                img.src = this.canvasData;
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        save() {
+            this.textContent = textArea.innerHTML;
+            this.canvasData = canvas.toDataURL();
+        }
+
+        close() {
+            const index = tabs.findIndex(t => t.id === this.id);
+            if (index !== -1) {
+                // Save content before closing
+                this.save();
+                
+                tabs.splice(index, 1);
+                this.tabButton.remove();
+                
+                // If this was the active tab, activate another one
+                if (this.id === activeTabId) {
+                    if (tabs.length > 0) {
+                        // Activate the previous tab, or the first one if this was the first tab
+                        const newActiveTab = tabs[Math.max(0, index - 1)];
+                        newActiveTab.activate();
+                    } else {
+                        // If no tabs left, create a new one
+                        createNewTab();
+                    }
+                }
+            }
+        }
+    }
+
+    function createNewTab() {
+        // Save current tab content if exists
+        if (activeTabId) {
+            const currentTab = tabs.find(t => t.id === activeTabId);
+            if (currentTab) {
+                currentTab.save();
+            }
+        }
+
+        const tab = new Tab();
+        tabs.push(tab);
+        tab.activate();
+        return tab;
+    }
 
     // Canvas setup
     function resizeCanvas() {
@@ -112,752 +230,592 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
 
-    // Command suggestion system
-    let selectedSuggestionIndex = -1;
-    let isShowingSuggestions = false;
+    // New page button
+    newPageBtn.addEventListener('click', createNewTab);
 
-    let isCheckboxMode = false;
-    let currentFormatting = null; // Track current formatting mode
-
-    const commands = {
-        '/end': {
-            icon: 'fa-stop',
-            description: 'End current formatting',
-            priority: 1, // Highest priority for main /end command
-            execute: () => {
-                // Create a new paragraph with default styling
-                const p = document.createElement('p');
-                p.className = 'default-text';
-                p.contentEditable = true;
-                
-                // Insert it at the current position
-                const selection = window.getSelection();
-                if (selection.rangeCount) {
-                    const range = selection.getRangeAt(0);
-                    
-                    // Find the current formatted element
-                    let currentElement = range.commonAncestorContainer;
-                    while (currentElement && currentElement.nodeType !== Node.ELEMENT_NODE) {
-                        currentElement = currentElement.parentNode;
-                    }
-                    
-                    if (currentElement) {
-                        // Insert the new paragraph after the current element
-                        currentElement.parentNode.insertBefore(p, currentElement.nextSibling);
-                        
-                        // Move cursor to the new paragraph
-                        const newRange = document.createRange();
-                        newRange.setStart(p, 0);
-                        selection.removeAllRanges();
-                        selection.addRange(newRange);
-                        
-                        // Reset all formatting states
-                        currentFormatting = null;
-                        isCheckboxMode = false;
-                    }
-                }
-                return '';
-            }
+    // Define commands
+    const commands = [
+        {
+            name: 'color',
+            description: 'Change text color',
+            subcommands: [
+                { name: 'red', action: () => document.execCommand('foreColor', false, '#ff0000') },
+                { name: 'blue', action: () => document.execCommand('foreColor', false, '#0000ff') },
+                { name: 'green', action: () => document.execCommand('foreColor', false, '#00ff00') },
+                { name: 'black', action: () => document.execCommand('foreColor', false, '#000000') },
+                { name: 'white', action: () => document.execCommand('foreColor', false, '#ffffff') }
+            ]
         },
-        '/end checkbox': {
-            icon: 'fa-square',
-            description: 'End checkbox list mode',
-            priority: 2, // Lower priority than main /end
-            execute: () => {
-                isCheckboxMode = false;
-                return '';
-            }
+        {
+            name: 'highlight',
+            description: 'Highlight text',
+            subcommands: [
+                { name: 'yellow', action: () => document.execCommand('backColor', false, '#ffff00') },
+                { name: 'green', action: () => document.execCommand('backColor', false, '#90EE90') },
+                { name: 'blue', action: () => document.execCommand('backColor', false, '#87CEEB') },
+                { name: 'pink', action: () => document.execCommand('backColor', false, '#FFB6C1') }
+            ]
         },
-        '/bold': {
-            icon: 'fa-bold',
-            description: 'Start bold text',
-            execute: () => {
-                currentFormatting = 'bold';
-                const span = document.createElement('span');
-                span.style.fontWeight = 'bold';
-                insertElementAtCaret(span);
-                return '';
-            }
+        {
+            name: 'h',
+            description: 'Add heading',
+            subcommands: [
+                { name: '1', action: () => document.execCommand('formatBlock', false, '<h1>') },
+                { name: '2', action: () => document.execCommand('formatBlock', false, '<h2>') },
+                { name: '3', action: () => document.execCommand('formatBlock', false, '<h3>') },
+                { name: '4', action: () => document.execCommand('formatBlock', false, '<h4>') },
+                { name: '5', action: () => document.execCommand('formatBlock', false, '<h5>') }
+            ]
         },
-        '/italic': {
-            icon: 'fa-italic',
-            description: 'Start italic text',
-            execute: () => {
-                currentFormatting = 'italic';
-                const span = document.createElement('span');
-                span.style.fontStyle = 'italic';
-                insertElementAtCaret(span);
-                return '';
-            }
+        {
+            name: 'bold',
+            description: 'Make text bold',
+            action: () => document.execCommand('bold', false, null)
         },
-        '/underline': {
-            icon: 'fa-underline',
-            description: 'Start underlined text',
-            execute: () => {
-                currentFormatting = 'underline';
-                const span = document.createElement('span');
-                span.style.textDecoration = 'underline';
-                insertElementAtCaret(span);
-                return '';
-            }
+        {
+            name: 'italic',
+            description: 'Make text italic',
+            action: () => document.execCommand('italic', false, null)
         },
-        '/color': {
-            icon: 'fa-palette',
-            description: 'Start colored text',
-            suggestions: ['red', 'blue', 'green', 'yellow', 'purple', 'orange'],
-            execute: (color) => {
-                currentFormatting = 'color';
-                const div = document.createElement('div');
-                div.style.color = color;
-                div.setAttribute('data-color', color);
-                div.contentEditable = true;
-                insertElementAtCaret(div);
-                return '';
-            }
+        {
+            name: 'underline',
+            description: 'Underline text',
+            action: () => document.execCommand('underline', false, null)
         },
-        '/checkbox': {
-            icon: 'fa-square',
-            description: 'Start checkbox list',
-            execute: () => {
-                isCheckboxMode = true;
-                const div = createCheckboxItem();
-                insertHtmlAtCaret(div.outerHTML);
-                const insertedSpan = textArea.querySelector('.checkbox-item:last-child .checkbox-text');
-                insertedSpan.focus();
-                return null;
-            }
+        {
+            name: 'strike',
+            description: 'Strike through text',
+            action: () => document.execCommand('strikeThrough', false, null)
         },
-        '/h1': {
-            icon: 'fa-heading',
-            description: 'Heading 1',
-            execute: () => {
-                currentFormatting = 'h1';
-                const div = document.createElement('div');
-                div.setAttribute('data-format', 'h1');
-                div.contentEditable = true;
-                insertElementAtCaret(div);
-                return '';
-            }
+        {
+            name: 'bullet',
+            description: 'Create bullet list',
+            action: () => document.execCommand('insertUnorderedList', false, null)
         },
-        '/h2': {
-            icon: 'fa-heading',
-            description: 'Heading 2',
-            execute: () => {
-                currentFormatting = 'h2';
-                const div = document.createElement('div');
-                div.setAttribute('data-format', 'h2');
-                div.contentEditable = true;
-                insertElementAtCaret(div);
-                return '';
-            }
+        {
+            name: 'number',
+            description: 'Create numbered list',
+            action: () => document.execCommand('insertOrderedList', false, null)
         },
-        '/h3': {
-            icon: 'fa-heading',
-            description: 'Heading 3',
-            execute: () => {
-                currentFormatting = 'h3';
-                const div = document.createElement('div');
-                div.setAttribute('data-format', 'h3');
-                div.contentEditable = true;
-                insertElementAtCaret(div);
-                return '';
-            }
-        },
-        '/h4': {
-            icon: 'fa-heading',
-            description: 'Heading 4',
-            execute: () => {
-                currentFormatting = 'h4';
-                const div = document.createElement('div');
-                div.setAttribute('data-format', 'h4');
-                div.contentEditable = true;
-                insertElementAtCaret(div);
-                return '';
-            }
-        },
-        '/h5': {
-            icon: 'fa-heading',
-            description: 'Heading 5',
-            execute: () => {
-                currentFormatting = 'h5';
-                const div = document.createElement('div');
-                div.setAttribute('data-format', 'h5');
-                div.contentEditable = true;
-                insertElementAtCaret(div);
-                return '';
-            }
-        },
-        '/bullet': {
-            icon: 'fa-circle',
-            description: 'Add a bullet point',
-            execute: () => {
-                return '<div class="bullet-item">• <span contenteditable="true"></span></div>';
-            }
-        },
-        '/numbered': {
-            icon: 'fa-list-ol',
-            description: 'Add a numbered list item',
-            execute: () => {
-                return '<div class="numbered-item"><span class="number"></span><span contenteditable="true"></span></div>';
-            }
-        },
-        '/quote': {
-            icon: 'fa-quote-left',
-            description: 'Start a quote block',
-            execute: () => {
-                return '<blockquote class="quote-block" contenteditable="true"></blockquote>';
-            }
-        },
-        '/code': {
-            icon: 'fa-code',
-            description: 'Start a code block',
-            execute: () => {
-                return '<code class="code-block" contenteditable="true"></code>';
+        {
+            name: 'end',
+            description: 'Clear formatting',
+            action: () => {
+                document.execCommand('removeFormat', false, null);
+                document.execCommand('formatBlock', false, 'div');
             }
         }
-    };
+    ];
 
-    function createCheckboxItem() {
-        const div = document.createElement('div');
-        div.className = 'checkbox-item';
-        div.innerHTML = `
-            <div class="checkbox-container">
-                <input type="checkbox" class="checkbox-input">
-                <span class="checkbox-text" contenteditable="true" spellcheck="false"></span>
+    let currentSuggestions = [];
+    let selectedIndex = -1;
+    const suggestionBox = document.getElementById('suggestionBox');
+
+    // Handle commands in text area
+    textArea.addEventListener('input', (e) => {
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        const node = range.startContainer;
+        
+        if (node.nodeType === 3) { // Text node
+            const text = node.textContent;
+            const position = range.startOffset;
+            
+            // Find the last '/' before cursor
+            const lastSlash = text.lastIndexOf('/', position);
+            if (lastSlash !== -1) {
+                const query = text.slice(lastSlash + 1, position).toLowerCase();
+                const parts = query.split(' ');
+                
+                if (parts.length === 1) {
+                    // Main command suggestions
+                    currentSuggestions = commands.filter(cmd => 
+                        cmd.name.toLowerCase().startsWith(parts[0]) || 
+                        cmd.description.toLowerCase().includes(parts[0])
+                    );
+                } else if (parts.length === 2) {
+                    // Subcommand suggestions
+                    const mainCommand = commands.find(cmd => cmd.name === parts[0]);
+                    if (mainCommand && mainCommand.subcommands) {
+                        currentSuggestions = mainCommand.subcommands
+                            .filter(sub => sub.name.toLowerCase().startsWith(parts[1]))
+                            .map(sub => ({
+                                name: `${mainCommand.name} ${sub.name}`,
+                                action: sub.action
+                            }));
+                    }
+                }
+
+                if (currentSuggestions.length > 0) {
+                    selectedIndex = 0;
+                    updateSuggestionBox(range);
+                } else {
+                    suggestionBox.style.display = 'none';
+                }
+            } else {
+                suggestionBox.style.display = 'none';
+            }
+        }
+    });
+
+    function updateSuggestionBox(range) {
+        const rect = range.getBoundingClientRect();
+        suggestionBox.style.top = `${rect.bottom + window.scrollY + 5}px`;
+        suggestionBox.style.left = `${rect.left + window.scrollX}px`;
+        
+        // Group commands by type
+        const mainCommands = currentSuggestions.filter(cmd => !cmd.name.includes(' '));
+        const subCommands = currentSuggestions.filter(cmd => cmd.name.includes(' '));
+        
+        const suggestions = [...mainCommands, ...subCommands].map((cmd, index) => `
+            <div class="suggestion ${index === selectedIndex ? 'selected' : ''}" 
+                 data-index="${index}">
+                <span class="command-name">${cmd.name}</span>
+                <span class="suggestion-description">${cmd.description || ''}</span>
+            </div>
+        `).join('');
+        
+        suggestionBox.innerHTML = `
+            <div class="suggestions-container">
+                ${suggestions}
             </div>
         `;
         
-        const checkbox = div.querySelector('.checkbox-input');
-        const textSpan = div.querySelector('.checkbox-text');
+        suggestionBox.style.display = 'block';
         
-        // Prevent default behavior when clicking checkbox
-        checkbox.addEventListener('click', (e) => {
-            e.stopPropagation();
-            textSpan.classList.toggle('checked', checkbox.checked);
-        });
-        
-        // Handle text editing
-        textSpan.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && isCheckboxMode) {
-                e.preventDefault();
-                const newDiv = createCheckboxItem();
-                div.parentNode.insertBefore(newDiv, div.nextSibling);
-                newDiv.querySelector('.checkbox-text').focus();
-            }
-            // Handle backspace at the start of text
-            if (e.key === 'Backspace' && textSpan.textContent.length === 0) {
-                e.preventDefault();
-                if (div.previousElementSibling && div.previousElementSibling.classList.contains('checkbox-item')) {
-                    const prevTextSpan = div.previousElementSibling.querySelector('.checkbox-text');
-                    prevTextSpan.focus();
-                    // Place cursor at the end of the previous text
-                    const range = document.createRange();
-                    range.selectNodeContents(prevTextSpan);
-                    range.collapse(false);
-                    const selection = window.getSelection();
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    div.remove();
-                }
-            }
-        });
-
-        // Ensure cursor stays in the text span
-        textSpan.addEventListener('focus', () => {
-            if (textSpan.textContent.length === 0) {
-                const range = document.createRange();
-                range.setStart(textSpan, 0);
-                range.collapse(true);
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-            }
-        });
-
-        return div;
-    }
-
-    // Add event listener for checkbox clicks
-    textArea.addEventListener('click', (e) => {
-        if (e.target.classList.contains('checkbox-input')) {
-            e.stopPropagation();
-            const textSpan = e.target.parentElement.querySelector('.checkbox-text');
-            textSpan.classList.toggle('checked', e.target.checked);
-        }
-    });
-
-    // Track active formats
-    const activeFormats = new Set();
-
-    function startFormatting(type, value = null) {
-        const format = { type, value };
-        activeFormats.add(format);
-        
-        const selection = window.getSelection();
-        const range = selection.getRangeAt(0);
-        
-        let wrapper;
-        switch(type) {
-            case 'bold':
-                wrapper = document.createElement('strong');
-                break;
-            case 'italic':
-                wrapper = document.createElement('em');
-                break;
-            case 'underline':
-                wrapper = document.createElement('u');
-                break;
-            case 'color':
-                wrapper = document.createElement('span');
-                wrapper.style.color = value;
-                break;
-            case 'size':
-                wrapper = document.createElement('span');
-                wrapper.style.fontSize = `${value}px`;
-                break;
-            case 'quote':
-                wrapper = document.createElement('blockquote');
-                wrapper.className = 'quote-block';
-                break;
-            case 'code':
-                wrapper = document.createElement('code');
-                wrapper.className = 'code-block';
-                break;
-        }
-        
-        range.insertNode(wrapper);
-        range.setStart(wrapper, 0);
-        selection.removeAllRanges();
-        selection.addRange(range);
-    }
-
-    function endFormatting(format) {
-        activeFormats.delete(format);
-    }
-
-    function getCaretPosition() {
-        const selection = window.getSelection();
-        if (selection.rangeCount === 0) return null;
-        const range = selection.getRangeAt(0);
-        const preCaretRange = range.cloneRange();
-        preCaretRange.selectNodeContents(textArea);
-        preCaretRange.setEnd(range.endContainer, range.endOffset);
-        const rect = range.getBoundingClientRect();
-        return {
-            x: rect.left,
-            y: rect.bottom,
-            text: preCaretRange.toString()
-        };
-    }
-
-    function showSuggestions(suggestions) {
-        if (!suggestions || suggestions.length === 0) {
-            hideSuggestions();
-            return;
-        }
-
-        commandSuggestions.innerHTML = suggestions.map((suggestion, index) => `
-            <div class="suggestion ${index === selectedSuggestionIndex ? 'selected' : ''}" 
-                 data-index="${index}">
-                <i class="fas ${suggestion.icon}"></i>
-                <span class="command">${suggestion.command}</span>
-                <span class="description">${suggestion.description}</span>
-            </div>
-        `).join('');
-
-        // Position the suggestions
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            
-            commandSuggestions.style.display = 'block';
-            commandSuggestions.style.left = `${rect.left}px`;
-            commandSuggestions.style.top = `${rect.bottom + 5}px`;
-        }
-
-        isShowingSuggestions = true;
-    }
-
-    function hideSuggestions() {
-        commandSuggestions.style.display = 'none';
-        selectedSuggestionIndex = -1;
-        isShowingSuggestions = false;
-    }
-
-    function getCurrentCommandText() {
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return '';
-
-        const range = selection.getRangeAt(0);
-        const text = range.startContainer.textContent;
-        const lastIndex = text.lastIndexOf('/', range.startOffset);
-        
-        if (lastIndex === -1) return '';
-        return text.substring(lastIndex, range.startOffset);
-    }
-
-    function getCommandSuggestions(text) {
-        const suggestions = [];
-        if (!text.startsWith('/')) return suggestions;
-
-        const [baseCommand, param] = text.split(' ');
-        
-        // If we have a parameter (like in /color red)
-        if (param !== undefined) {
-            // Handle color command specifically
-            if (baseCommand === '/color') {
-                const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
-                colors.forEach(color => {
-                    if (color.startsWith(param.toLowerCase())) {
-                        suggestions.push({
-                            command: '/color',
-                            param: color,
-                            icon: 'fa-palette',
-                            description: `Set text color to ${color}`
-                        });
-                    }
-                });
-            }
-        } else {
-            // Show base command suggestions
-            Object.entries(commands).forEach(([cmd, details]) => {
-                if (cmd.startsWith(baseCommand)) {
-                    suggestions.push({
-                        command: cmd,
-                        icon: details.icon,
-                        description: details.description
-                    });
-                }
+        // Add click handlers
+        suggestionBox.querySelectorAll('.suggestion').forEach((el, index) => {
+            el.addEventListener('click', () => {
+                executeCommand(currentSuggestions[index]);
             });
-        }
-
-        return suggestions;
-    }
-
-    function applySuggestion(suggestion) {
-        if (!suggestion) return;
-        
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
-        
-        const range = selection.getRangeAt(0);
-        const text = range.startContainer.textContent;
-        const lastIndex = text.lastIndexOf('/', range.startOffset);
-        
-        if (lastIndex === -1) return;
-        
-        // Create a range for the command text
-        const commandRange = document.createRange();
-        commandRange.setStart(range.startContainer, lastIndex);
-        commandRange.setEnd(range.startContainer, range.startOffset);
-        
-        // Delete the command text
-        commandRange.deleteContents();
-        
-        // Execute the command
-        const command = commands[suggestion.command];
-        if (command) {
-            if (suggestion.param) {
-                command.execute(suggestion.param);
-            } else {
-                command.execute();
-            }
-        }
-        
-        hideSuggestions();
+            
+            // Add hover effect
+            el.addEventListener('mouseenter', () => {
+                selectedIndex = parseInt(el.dataset.index);
+                updateSelectedSuggestion();
+            });
+        });
     }
 
     function updateSelectedSuggestion() {
-        const suggestions = commandSuggestions.querySelectorAll('.suggestion');
-        suggestions.forEach((suggestion, index) => {
-            suggestion.classList.toggle('selected', index === selectedSuggestionIndex);
+        suggestionBox.querySelectorAll('.suggestion').forEach((el, index) => {
+            el.classList.toggle('selected', index === selectedIndex);
         });
     }
 
-    function insertHtmlAtCaret(html) {
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
-        
-        const range = selection.getRangeAt(0);
-        const fragment = range.createContextualFragment(html);
-        range.insertNode(fragment);
-        range.collapse(false);
-        
-        selection.removeAllRanges();
-        selection.addRange(range);
-    }
-
-    function insertElementAtCaret(element) {
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
-        
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        
-        // Create a new range for the text after the command
-        const textNode = document.createTextNode('');
-        element.appendChild(textNode);
-        
-        range.insertNode(element);
-        
-        // Move the caret to the text node
-        range.setStart(textNode, 0);
-        range.setEnd(textNode, 0);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        // Handle Enter key to maintain formatting
-        element.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && currentFormatting) {
-                e.preventDefault();
-                
-                // Create a new element with the same formatting
-                const newElement = element.cloneNode(false);
-                newElement.textContent = '';
-                
-                // Insert after current element
-                if (element.nextSibling) {
-                    element.parentNode.insertBefore(newElement, element.nextSibling);
-                } else {
-                    element.parentNode.appendChild(newElement);
-                }
-                
-                // Move cursor to new element
-                const newRange = document.createRange();
-                newRange.setStart(newElement, 0);
-                newRange.setEnd(newElement, 0);
-                selection.removeAllRanges();
-                selection.addRange(newRange);
-            }
-        });
-    }
-
-    textArea.addEventListener('input', () => {
-        const commandText = getCurrentCommandText();
-        if (commandText) {
-            const suggestions = getCommandSuggestions(commandText);
-            if (suggestions.length > 0) {
-                selectedSuggestionIndex = 0;
-                showSuggestions(suggestions);
-            } else {
-                hideSuggestions();
-            }
-        } else {
-            hideSuggestions();
-        }
-    });
-
+    // Handle keyboard navigation
     textArea.addEventListener('keydown', (e) => {
-        if (isShowingSuggestions) {
-            const suggestions = getCommandSuggestions(getCurrentCommandText());
-            
+        if (suggestionBox.style.display === 'block') {
             switch (e.key) {
                 case 'ArrowDown':
                     e.preventDefault();
-                    selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestions.length - 1);
-                    updateSelectedSuggestion();
+                    selectedIndex = Math.min(selectedIndex + 1, currentSuggestions.length - 1);
+                    updateSuggestionBox(window.getSelection().getRangeAt(0));
                     break;
-                    
                 case 'ArrowUp':
                     e.preventDefault();
-                    selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, 0);
-                    updateSelectedSuggestion();
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    updateSuggestionBox(window.getSelection().getRangeAt(0));
                     break;
-                    
                 case 'Enter':
                     e.preventDefault();
-                    if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestions.length) {
-                        applySuggestion(suggestions[selectedSuggestionIndex]);
+                    if (selectedIndex >= 0) {
+                        executeCommand(currentSuggestions[selectedIndex]);
                     }
                     break;
-                    
                 case 'Escape':
-                    e.preventDefault();
-                    hideSuggestions();
+                    suggestionBox.style.display = 'none';
                     break;
             }
         }
     });
 
-    // Update numbered list items
-    function updateNumberedItems() {
-        let number = 1;
-        textArea.querySelectorAll('.numbered-item').forEach(item => {
-            const numberSpan = item.querySelector('.number');
-            numberSpan.textContent = `${number}. `;
-            number++;
-        });
+    // Handle suggestion clicks
+    suggestionBox.addEventListener('click', (e) => {
+        const suggestion = e.target.closest('.suggestion');
+        if (suggestion) {
+            const index = parseInt(suggestion.dataset.index);
+            executeCommand(currentSuggestions[index]);
+        }
+    });
+
+    function executeCommand(command) {
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        const node = range.startContainer;
+        const text = node.textContent;
+        const lastSlash = text.lastIndexOf('/');
+        
+        // Save the current selection
+        const savedRange = range.cloneRange();
+        
+        // Remove the command text
+        node.textContent = text.slice(0, lastSlash);
+        
+        // Restore selection at the end of the remaining text
+        const newRange = document.createRange();
+        newRange.setStart(node, node.textContent.length);
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+        
+        // Execute the command
+        if (typeof command.action === 'function') {
+            command.action();
+        } else if (command.subcommands) {
+            const subcommand = command.subcommands[0];
+            if (subcommand && subcommand.action) {
+                subcommand.action();
+            }
+        }
+        
+        // Insert a space after the command
+        document.execCommand('insertText', false, ' ');
+        
+        suggestionBox.style.display = 'none';
     }
 
-    // Generate unique ID for the device
-    const deviceId = localStorage.getItem('deviceId') || generateDeviceId();
-    if (!localStorage.getItem('deviceId')) {
-        localStorage.setItem('deviceId', deviceId);
-    }
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#suggestionBox') && !e.target.closest('#textArea')) {
+            suggestionBox.style.display = 'none';
+        }
+    });
 
-    function generateDeviceId() {
-        return 'device_' + Math.random().toString(36).substr(2, 9);
-    }
-
-    // Auto-save functionality
-    let autoSaveTimeout;
-    const AUTO_SAVE_DELAY = 60000; // 1 minute in milliseconds
-
-    function showSaveIndicator() {
-        saveIndicator.textContent = 'Saving...';
-        setTimeout(() => {
-            saveIndicator.textContent = 'All changes saved';
-            setTimeout(() => {
-                saveIndicator.textContent = '';
-            }, 2000);
-        }, 500);
-    }
-
-    function autoSave() {
-        clearTimeout(autoSaveTimeout);
-        autoSaveTimeout = setTimeout(() => {
-            saveCurrentNote();
+    // Save functionality with local storage
+    function saveToLocalStorage() {
+        const currentTab = tabs.find(t => t.id === activeTabId);
+        if (currentTab) {
+            currentTab.save();
+            const savedTabs = tabs.map(tab => ({
+                id: tab.id,
+                title: tab.title,
+                textContent: tab.textContent,
+                canvasData: tab.canvasData
+            }));
+            localStorage.setItem('webNotesTabs', JSON.stringify(savedTabs));
+            localStorage.setItem('webNotesActiveTab', activeTabId);
             showSaveIndicator();
-        }, AUTO_SAVE_DELAY);
-    }
-
-    // Save current note
-    function saveCurrentNote() {
-        const content = textArea.innerHTML;
-        const timestamp = new Date().toISOString();
-        const notes = JSON.parse(localStorage.getItem(`notes_${deviceId}`) || '[]');
-        
-        // Update the current note or create a new one
-        if (notes.length > 0) {
-            notes[0] = { content, timestamp };
-        } else {
-            notes.push({ content, timestamp });
         }
-        
-        localStorage.setItem(`notes_${deviceId}`, JSON.stringify(notes));
-        showSaveIndicator();
     }
 
-    // Load note history
-    function loadHistory() {
-        const notes = JSON.parse(localStorage.getItem(`notes_${deviceId}`) || '[]');
-        historyList.innerHTML = '';
-        
-        notes.forEach(note => {
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.innerHTML = `
-                <div>${note.title}</div>
-                <div style="font-size: 0.8em; color: #888;">
-                    ${new Date(note.timestamp).toLocaleString()}
-                </div>
-            `;
-            historyItem.onclick = () => loadNote(note);
-            historyList.appendChild(historyItem);
+    // Load from local storage
+    function loadFromLocalStorage() {
+        const savedTabs = JSON.parse(localStorage.getItem('webNotesTabs') || '[]');
+        const savedActiveTab = localStorage.getItem('webNotesActiveTab');
+
+        if (savedTabs.length > 0) {
+            // Clear existing tabs
+            tabs.forEach(tab => tab.tabButton.remove());
+            tabs = [];
+
+            // Restore saved tabs
+            savedTabs.forEach(savedTab => {
+                const tab = new Tab();
+                tab.id = savedTab.id;
+                tab.title = savedTab.title;
+                tab.textContent = savedTab.textContent;
+                tab.canvasData = savedTab.canvasData;
+                tabs.push(tab);
+            });
+
+            // Activate the previously active tab
+            const tabToActivate = tabs.find(t => t.id === savedActiveTab) || tabs[0];
+            tabToActivate.activate();
+        } else {
+            createNewTab();
+        }
+    }
+
+    // Make tab names editable
+    function makeTabNameEditable(tab) {
+        const titleSpan = tab.tabButton.querySelector('span');
+        titleSpan.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            const input = document.createElement('input');
+            input.value = tab.title;
+            input.className = 'tab-name-input';
+            
+            input.addEventListener('blur', () => {
+                tab.title = input.value;
+                titleSpan.textContent = input.value;
+                saveToLocalStorage();
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                }
+            });
+
+            titleSpan.textContent = '';
+            titleSpan.appendChild(input);
+            input.focus();
         });
     }
 
-    // Load specific note
-    function loadNote(note) {
-        textArea.innerHTML = note.content;
-        
-        // Load canvas
-        const img = new Image();
-        img.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-        };
-        img.src = note.canvas;
-        
-        historyModal.style.display = 'none';
+    // Auto-save every 60 seconds
+    setInterval(saveToLocalStorage, 60000);
+
+    // Save when switching tabs
+    function switchTab(newTab) {
+        saveToLocalStorage();
+        newTab.activate();
     }
 
-    // Export functionality
-    async function exportAsPDF() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        
-        // First, convert the content to an image
-        const canvas = await html2canvas(textArea);
-        const imgData = canvas.toDataURL('image/png');
-        
-        // Add the image to the PDF
-        doc.addImage(imgData, 'PNG', 10, 10, 190, 0);
-        
-        // Save the PDF
-        doc.save(`WebNote_${new Date().toISOString()}.pdf`);
-    }
+    // Load saved notes on startup
+    loadFromLocalStorage();
 
-    async function exportAsImage() {
-        const canvas = await html2canvas(textArea);
-        const link = document.createElement('a');
-        link.download = `WebNote_${new Date().toISOString()}.png`;
-        link.href = canvas.toDataURL();
-        link.click();
-    }
+    // Create initial tab
+    createNewTab();
 
-    // Event listeners for new functionality
-    textArea.addEventListener('input', autoSave);
-    canvas.addEventListener('mouseup', autoSave);
-
-    newPageBtn.addEventListener('click', () => {
-        textArea.innerHTML = '';
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    });
-
-    saveNoteBtn.addEventListener('click', saveCurrentNote);
-    
-    exportPDFBtn.addEventListener('click', exportAsPDF);
-    exportImageBtn.addEventListener('click', exportAsImage);
-    
-    historyBtn.addEventListener('click', () => {
-        loadHistory();
-        historyModal.style.display = 'block';
-    });
-    
-    closeModal.addEventListener('click', () => {
-        historyModal.style.display = 'none';
-    });
-
-    window.addEventListener('click', (e) => {
-        if (e.target === historyModal) {
-            historyModal.style.display = 'none';
+    // Save and export functionality
+    saveNoteBtn.addEventListener('click', () => {
+        const currentTab = tabs.find(t => t.id === activeTabId);
+        if (currentTab) {
+            currentTab.save();
+            const content = textArea.innerHTML;
+            const blob = new Blob([content], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentTab.title}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showSaveIndicator();
         }
     });
 
-    // Handle offline/online events
-    window.addEventListener('online', () => {
-        const offlineNotes = JSON.parse(localStorage.getItem(`offline_notes_${deviceId}`) || '[]');
-        if (offlineNotes.length > 0) {
-            offlineNotes.forEach(note => {
-                // Here you would typically sync with a server
-                console.log('Syncing offline note:', note);
-            });
-            localStorage.removeItem(`offline_notes_${deviceId}`);
+    async function exportNoteAsPDF(tab, pdf, startY) {
+        let currentY = startY;
+        
+        // Add title
+        pdf.setFontSize(16);
+        pdf.text(tab.title, 10, currentY);
+        currentY += 15;
+        
+        // Create temporary div for text content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = tab.textContent;
+        tempDiv.style.width = '800px';
+        tempDiv.style.padding = '20px';
+        tempDiv.style.background = '#fff';
+        tempDiv.style.color = '#000';
+        document.body.appendChild(tempDiv);
+        
+        try {
+            // Convert text content to image
+            const textCanvas = await html2canvas(tempDiv);
+            const textImgData = textCanvas.toDataURL('image/jpeg', 1.0);
+            
+            // Calculate dimensions for text content
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const contentWidth = pageWidth - 20;
+            const contentHeight = (textCanvas.height * contentWidth) / textCanvas.width;
+            
+            // Add new page if needed
+            if (currentY + contentHeight > pdf.internal.pageSize.getHeight()) {
+                pdf.addPage();
+                currentY = 10;
+            }
+            
+            // Add text content
+            pdf.addImage(textImgData, 'JPEG', 10, currentY, contentWidth, contentHeight);
+            currentY += contentHeight + 10;
+            
+            // Add drawing if it exists
+            if (tab.canvasData && !isCanvasEmpty(tab.canvasData)) {
+                // Add new page if needed
+                if (currentY + 200 > pdf.internal.pageSize.getHeight()) {
+                    pdf.addPage();
+                    currentY = 10;
+                }
+                
+                const drawingImgData = tab.canvasData.toDataURL('image/png');
+                pdf.addImage(drawingImgData, 'PNG', 10, currentY, contentWidth, 200);
+                currentY += 210;
+            }
+            
+        } finally {
+            document.body.removeChild(tempDiv);
         }
-    });
-
-    window.addEventListener('offline', () => {
-        // Continue allowing work in offline mode
-        // Notes will be saved locally
-    });
-
-    // Load the last saved note on startup
-    const notes = JSON.parse(localStorage.getItem(`notes_${deviceId}`) || '[]');
-    if (notes.length > 0) {
-        loadNote(notes[0]);
+        
+        return currentY;
     }
 
-    // Update the click handler for suggestions
-    commandSuggestions.addEventListener('click', (e) => {
-        const suggestionElement = e.target.closest('.suggestion');
-        if (suggestionElement) {
-            const index = parseInt(suggestionElement.dataset.index);
-            const suggestions = getCommandSuggestions(getCurrentCommandText());
-            if (suggestions[index]) {
-                applySuggestion(suggestions[index]);
+    exportPDFBtn.addEventListener('click', async () => {
+        const currentTab = tabs.find(t => t.id === activeTabId);
+        if (currentTab) {
+            try {
+                // Create a temporary container with proper styling
+                const tempContainer = document.createElement('div');
+                tempContainer.innerHTML = textArea.innerHTML;
+                tempContainer.style.width = '800px';
+                tempContainer.style.padding = '40px';
+                tempContainer.style.background = '#fff';
+                tempContainer.style.color = '#000';
+                document.body.appendChild(tempContainer);
+
+                // Convert to canvas
+                const canvas = await html2canvas(tempContainer, {
+                    scale: 2,
+                    backgroundColor: '#fff',
+                    logging: false,
+                    useCORS: true
+                });
+
+                // Create PDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'px'
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save(`${currentTab.title}.pdf`);
+
+                // Clean up
+                document.body.removeChild(tempContainer);
+            } catch (error) {
+                console.error('Error exporting PDF:', error);
+                alert('Error exporting PDF. Please try again.');
             }
         }
     });
+
+    exportImageBtn.addEventListener('click', async () => {
+        const currentTab = tabs.find(t => t.id === activeTabId);
+        if (currentTab) {
+            try {
+                if (drawMode.classList.contains('active')) {
+                    // Export canvas
+                    const dataUrl = canvas.toDataURL('image/png');
+                    downloadURL(dataUrl, `${currentTab.title}.png`);
+                } else {
+                    // Export text content
+                    const tempContainer = document.createElement('div');
+                    tempContainer.innerHTML = textArea.innerHTML;
+                    tempContainer.style.width = '800px';
+                    tempContainer.style.padding = '40px';
+                    tempContainer.style.background = '#fff';
+                    tempContainer.style.color = '#000';
+                    document.body.appendChild(tempContainer);
+
+                    const canvas = await html2canvas(tempContainer, {
+                        scale: 2,
+                        backgroundColor: '#fff',
+                        logging: false,
+                        useCORS: true
+                    });
+
+                    const dataUrl = canvas.toDataURL('image/png');
+                    downloadURL(dataUrl, `${currentTab.title}.png`);
+
+                    document.body.removeChild(tempContainer);
+                }
+            } catch (error) {
+                console.error('Error exporting image:', error);
+                alert('Error exporting image. Please try again.');
+            }
+        }
+    });
+
+    function downloadURL(url, filename) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    exportAllBtn.addEventListener('click', async () => {
+        const allTabs = tabs;
+        const zip = new JSZip();
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        let currentY = 10;
+        
+        // Create folders in zip
+        const htmlFolder = zip.folder("html");
+        const pdfFolder = zip.folder("pdf");
+        const imagesFolder = zip.folder("images");
+        
+        // Process each tab
+        for (let i = 0; i < allTabs.length; i++) {
+            const tab = allTabs[i];
+            
+            // Save as HTML
+            const combinedHTML = `
+                <html>
+                <body>
+                    <h1>${tab.title}</h1>
+                    <div class="text-content">
+                        ${tab.textContent}
+                    </div>
+                    ${tab.canvasData && !isCanvasEmpty(tab.canvasData) ? 
+                        `<div class="drawing">
+                            <img src="${tab.canvasData.toDataURL()}" />
+                        </div>` : ''}
+                </body>
+                </html>
+            `;
+            htmlFolder.file(`${tab.title}.html`, combinedHTML);
+            
+            // Add to combined PDF
+            if (i > 0 && currentY > pdf.internal.pageSize.getHeight() - 20) {
+                pdf.addPage();
+                currentY = 10;
+            }
+            
+            // Export note with text and drawing
+            currentY = await exportNoteAsPDF(tab, pdf, currentY);
+            
+            // Save individual PDF
+            const individualPdf = new jsPDF();
+            await exportNoteAsPDF(tab, individualPdf, 10);
+            pdfFolder.file(`${tab.title}.pdf`, await individualPdf.output('blob'));
+            
+            // Save images
+            imagesFolder.file(`${tab.title}_text.png`, await html2canvas(tempDiv).then(canvas => 
+                canvas.toDataURL('image/png').split('base64,')[1]
+            ), {base64: true});
+            
+            if (tab.canvasData && !isCanvasEmpty(tab.canvasData)) {
+                imagesFolder.file(
+                    `${tab.title}_drawing.png`, 
+                    tab.canvasData.toDataURL('image/png').split('base64,')[1], 
+                    {base64: true}
+                );
+            }
+        }
+        
+        // Save everything
+        pdf.save('all_notes.pdf');
+        zip.generateAsync({type:"blob"}).then(function(content) {
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'all_notes.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    });
+
+    function isCanvasEmpty(canvas) {
+        const context = canvas.getContext('2d');
+        const pixelBuffer = new Uint32Array(
+            context.getImageData(0, 0, canvas.width, canvas.height).data.buffer
+        );
+        return !pixelBuffer.some(color => color !== 0);
+    }
 });

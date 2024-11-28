@@ -62,7 +62,7 @@ select, input[type="color"] {
 #textArea {
     width: 100%;
     height: 100%;
-    min-height: calc(100vh - 150px);
+    min-height: calc(100vh - 200px);
     padding: 40px;
     background-color: #111;
     border-radius: 8px;
@@ -71,33 +71,153 @@ select, input[type="color"] {
     line-height: 1.6;
     cursor: text;
     color: #fff;
+    overflow-y: auto;
+    z-index: 1;
 }
 
 #drawingCanvas {
     position: absolute;
     top: 20px;
     left: 20px;
+    right: 20px;
+    bottom: 20px;
     background-color: transparent;
     display: none;
+    z-index: 2;
+}
+
+.tab-bar {
+    background-color: #1a1a1a;
+    padding: 5px 15px 0;
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    border-bottom: 1px solid #333;
+}
+
+.tab {
+    background-color: #333;
+    color: #fff;
+    border: none;
+    padding: 8px 30px 8px 15px;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    white-space: nowrap;
+    margin-right: 2px;
+    border: 1px solid transparent;
+    border-bottom: none;
+}
+
+.tab.active {
+    background-color: #111;
+    border-color: #444;
+    color: #00ff9d;
+    box-shadow: 0 -2px 4px rgba(0, 255, 157, 0.1);
+}
+
+.tab:hover {
+    background-color: #444;
+}
+
+.tab i {
+    margin-right: 8px;
+    color: #00ff9d;
+}
+
+.tab .close-tab {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.tab .close-tab:hover {
+    background-color: #555;
+    opacity: 1;
+}
+
+.tab-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.tab-pane {
+    display: none;
+    flex: 1;
+    height: 100%;
+}
+
+.tab-pane.active {
+    display: flex;
+    flex-direction: column;
 }
 
 .command-input {
-    padding: 15px;
-    background-color: #1a1a1a;
-    border-top: 1px solid #333;
+    display: none;
 }
 
 #commandInput {
     width: 100%;
-    padding: 10px;
-    background-color: #333;
-    border: none;
+    padding: 12px 15px;
+    background-color: #222;
+    border: 1px solid #444;
     color: #fff;
     border-radius: 4px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+#commandInput:focus {
+    outline: none;
+    border-color: #00ff9d;
+    box-shadow: 0 0 0 2px rgba(0, 255, 157, 0.1);
 }
 
 #commandInput::placeholder {
-    color: #888;
+    color: #666;
+}
+
+#commandSuggestions {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background-color: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.suggestion {
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.suggestion:hover {
+    background-color: #333;
+    color: #00ff9d;
+}
+
+.suggestion strong {
+    color: #00ff9d;
+    margin-right: 8px;
 }
 
 .top-bar {
@@ -199,15 +319,21 @@ select, input[type="color"] {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background-color: #333;
+    background-color: #00ff9d;
+    color: #000;
     padding: 8px 15px;
     border-radius: 4px;
-    opacity: 0;
-    transition: opacity 0.3s;
+    font-size: 14px;
+    display: none;
+    animation: fadeInOut 2s ease;
+    z-index: 1000;
 }
 
-#saveIndicator.visible {
-    opacity: 1;
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translateY(20px); }
+    20% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(20px); }
 }
 
 /* Custom scrollbar */
@@ -229,49 +355,6 @@ select, input[type="color"] {
 }
 
 /* Command Suggestions */
-#commandSuggestions {
-    position: fixed;
-    display: none;
-    background-color: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
-    max-width: 300px;
-    min-width: 200px;
-}
-
-.suggestion {
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.suggestion:hover,
-.suggestion.selected {
-    background-color: #2a2a2a;
-}
-
-.suggestion i {
-    color: #666;
-    width: 16px;
-    text-align: center;
-}
-
-.suggestion .command {
-    color: #fff;
-    font-family: monospace;
-}
-
-.suggestion .description {
-    color: #666;
-    margin-left: auto;
-    font-size: 0.9em;
-}
-
 /* List and Checkbox Styles */
 .checkbox-item {
     display: block;
@@ -387,3 +470,155 @@ h1 { font-size: 64px; }
     min-height: 24px;
     outline: none;
 }
+
+#textAreaSuggestions {
+    position: fixed;
+    background-color: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    min-width: 200px;
+    max-width: 400px;
+}
+
+#textAreaSuggestions .suggestion {
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid #333;
+}
+
+#textAreaSuggestions .suggestion:last-child {
+    border-bottom: none;
+}
+
+#textAreaSuggestions .suggestion:hover,
+#textAreaSuggestions .suggestion.selected {
+    background-color: #333;
+}
+
+#textAreaSuggestions .suggestion strong {
+    color: #00ff9d;
+    margin-right: 8px;
+    font-family: monospace;
+}
+
+.tab-name-input {
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: inherit;
+    font-family: inherit;
+    padding: 0;
+    margin: 0;
+    width: 100px;
+    outline: none;
+}
+
+.tab-name-input:focus {
+    border-bottom: 1px solid #00ff9d;
+}
+
+.command-input {
+    display: none;
+}
+
+.suggestion-box {
+    position: absolute;
+    background: rgba(18, 18, 18, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    border-radius: 6px;
+    max-height: 320px;
+    min-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
+                0 0 15px rgba(76, 175, 80, 0.1);
+    padding: 8px 4px;
+    min-width: 280px;
+    font-family: 'Consolas', monospace;
+}
+
+.suggestion-box::-webkit-scrollbar {
+    width: 4px;
+}
+
+.suggestion-box::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.suggestion-box::-webkit-scrollbar-thumb {
+    background: rgba(76, 175, 80, 0.3);
+    border-radius: 2px;
+}
+
+.suggestion-box .suggestion {
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 3px;
+    margin: 2px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 13px;
+    line-height: 1.4;
+    transition: all 0.2s ease;
+}
+
+.suggestion-box .suggestion .command-name {
+    color: #4CAF50;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.suggestion-box .suggestion .command-name::before {
+    content: '>';
+    opacity: 0;
+    color: #4CAF50;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.suggestion-box .suggestion.selected {
+    background: rgba(76, 175, 80, 0.1);
+}
+
+.suggestion-box .suggestion.selected .command-name::before {
+    opacity: 1;
+}
+
+.suggestion-box .suggestion:hover {
+    background: rgba(76, 175, 80, 0.05);
+}
+
+.suggestion-description {
+    color: #888;
+    font-size: 0.85em;
+    font-weight: 300;
+    padding-left: 14px;
+    opacity: 0.8;
+}
+
+/* Add subtle animation for suggestions */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.suggestion-box .suggestion {
+    animation: fadeIn 0.15s ease-out forwards;
+}
+
+.suggestion-box .suggestion:nth-child(1) { animation-delay: 0.02s; }
+.suggestion-box .suggestion:nth-child(2) { animation-delay: 0.04s; }
+.suggestion-box .suggestion:nth-child(3) { animation-delay: 0.06s; }
+.suggestion-box .suggestion:nth-child(4) { animation-delay: 0.08s; }
+.suggestion-box .suggestion:nth-child(5) { animation-delay: 0.10s; }

@@ -18,6 +18,7 @@
                 <div class="export-content">
                     <button id="exportPDF">As PDF</button>
                     <button id="exportImage">As Image</button>
+                    <button id="exportAll">Export All</button>
                 </div>
             </div>
         </div>
@@ -25,6 +26,7 @@
             <button id="historyBtn"><i class="fas fa-history"></i> History</button>
         </div>
     </div>
+    <div id="tabBar" class="tab-bar"></div>
     <div class="toolbar">
         <div class="text-controls">
             <select id="fontFamily">
@@ -59,9 +61,15 @@
         </div>
     </div>
     <div class="workspace">
-        <div id="textArea" contenteditable="true"></div>
-        <canvas id="drawingCanvas"></canvas>
-        <div id="commandSuggestions" class="command-suggestions"></div>
+        <div id="tabContent" class="tab-content">
+            <div id="textArea" contenteditable="true"></div>
+            <canvas id="drawingCanvas"></canvas>
+            <div id="suggestionBox" class="suggestion-box"></div>
+        </div>
+    </div>
+    <div class="command-input">
+        <input type="text" id="commandInput" placeholder="Type / for commands" />
+        <div id="commandSuggestions"></div>
     </div>
     
     <!-- History Modal -->
@@ -80,8 +88,9 @@
     <!-- Auto-save Indicator -->
     <div id="saveIndicator">Auto-saving...</div>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.5.0-beta4/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
