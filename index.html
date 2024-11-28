@@ -16,9 +16,24 @@
             <div class="export-dropdown">
                 <button id="exportBtn"><i class="fas fa-download"></i> Export</button>
                 <div class="export-content">
-                    <button id="exportPDF">As PDF</button>
-                    <button id="exportImage">As Image</button>
-                    <button id="exportAll">Export All</button>
+                    <div class="export-section">
+                        <div class="export-header">Current Note</div>
+                        <button id="exportPDF">As PDF (All)</button>
+                        <button id="exportPDFText">As PDF (Text Only)</button>
+                        <button id="exportPDFDrawing">As PDF (Drawing Only)</button>
+                        <button id="exportImage">As Image (All)</button>
+                        <button id="exportImageText">As Image (Text Only)</button>
+                        <button id="exportImageDrawing">As Image (Drawing Only)</button>
+                        <button id="exportHTML">As HTML</button>
+                    </div>
+                    <div class="export-divider"></div>
+                    <div class="export-section">
+                        <div class="export-header">All Notes</div>
+                        <button id="exportAllPDF">As PDF (All)</button>
+                        <button id="exportAllPDFText">As PDF (Text Only)</button>
+                        <button id="exportAllPDFDrawing">As PDF (Drawing Only)</button>
+                        <button id="exportAllZip">As ZIP (All Formats)</button>
+                    </div>
                 </div>
             </div>
         </div>
