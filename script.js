@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             name: cmd.name,
                             description: cmd.description,
                             action: cmd.action
-                        }));
+                        })));
                 } else if (parts.length === 2) {
                     const mainCommand = commands.find(cmd => cmd.name === parts[0]);
                     if (mainCommand && mainCommand.subcommands) {
