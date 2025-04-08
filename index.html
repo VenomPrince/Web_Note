@@ -11,34 +11,17 @@
 <body>
     <div class="top-bar">
         <div class="file-controls">
-            <button id="newPage"><i class="fas fa-plus"></i> New Page</button>
+            <button id="newPage"><i class="fas fa-plus"></i> New</button>
             <button id="saveNote"><i class="fas fa-save"></i> Save</button>
             <div class="export-dropdown">
                 <button id="exportBtn"><i class="fas fa-download"></i> Export</button>
                 <div class="export-content">
                     <div class="export-section">
                         <div class="export-header">Current Note</div>
-                        <button id="exportPDF">As PDF (All)</button>
-                        <button id="exportPDFText">As PDF (Text Only)</button>
-                        <button id="exportPDFDrawing">As PDF (Drawing Only)</button>
-                        <button id="exportImage">As Image (All)</button>
-                        <button id="exportImageText">As Image (Text Only)</button>
-                        <button id="exportImageDrawing">As Image (Drawing Only)</button>
-                        <button id="exportHTML">As HTML</button>
-                    </div>
-                    <div class="export-divider"></div>
-                    <div class="export-section">
-                        <div class="export-header">All Notes</div>
-                        <button id="exportAllPDF">As PDF (All)</button>
-                        <button id="exportAllPDFText">As PDF (Text Only)</button>
-                        <button id="exportAllPDFDrawing">As PDF (Drawing Only)</button>
-                        <button id="exportAllZip">As ZIP (All Formats)</button>
+                        <button id="exportHTML"><i class="fas fa-file-code"></i> As HTML</button>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="history-control">
-            <button id="historyBtn"><i class="fas fa-history"></i> History</button>
         </div>
     </div>
     <div id="tabBar" class="tab-bar"></div>
@@ -59,20 +42,20 @@
                 <option value="32">32px</option>
             </select>
             <input type="color" id="textColor" value="#ffffff">
-            <button id="bold"><i class="fas fa-bold"></i></button>
-            <button id="italic"><i class="fas fa-italic"></i></button>
-            <button id="underline"><i class="fas fa-underline"></i></button>
+            <button id="bold" title="Bold"><i class="fas fa-bold"></i></button>
+            <button id="italic" title="Italic"><i class="fas fa-italic"></i></button>
+            <button id="underline" title="Underline"><i class="fas fa-underline"></i></button>
         </div>
         <div class="mode-controls">
-            <button id="textMode" class="active">Text Mode</button>
-            <button id="drawMode">Draw Mode</button>
+            <button id="textMode" class="active"><i class="fas fa-font"></i> Text</button>
+            <button id="drawMode"><i class="fas fa-paint-brush"></i> Draw</button>
             <input type="color" id="drawColor" value="#ffffff">
             <select id="brushSize">
                 <option value="2">Small</option>
-                <option value="5">Medium</option>
+                <option value="5" selected>Medium</option>
                 <option value="10">Large</option>
             </select>
-            <button id="clearCanvas">Clear Canvas</button>
+            <button id="clearCanvas"><i class="fas fa-trash"></i> Clear</button>
         </div>
     </div>
     <div class="workspace">
@@ -82,30 +65,9 @@
             <div id="suggestionBox" class="suggestion-box"></div>
         </div>
     </div>
-    <div class="command-input">
-        <input type="text" id="commandInput" placeholder="Type / for commands" />
-        <div id="commandSuggestions"></div>
-    </div>
     
-    <!-- History Modal -->
-    <div id="historyModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>History</h2>
-                <span class="close">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="historyList"></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Auto-save Indicator -->
     <div id="saveIndicator">Auto-saving...</div>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
